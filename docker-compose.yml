@@ -1,0 +1,50 @@
+version: '3.8'
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: mysql_container
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root            
+      MYSQL_DATABASE: integracaoaf         
+    ports:
+      - "7777:7777"
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  flask-api:
+    build: ./python_api 
+    container_name: flask_api
+    ports:
+      - "5000:5000"
+    environment:
+      MYSQL_HOST: mysql  
+      MYSQL_USER: root
+      MYSQL_PASSWORD: root
+      MYSQL_DATABASE: integracaoaf
+      MYSQL_PORT: 7777
+    depends_on:
+      - mysql
+
+  node-api:
+    build: ./node_api
+    container_name: node_api
+    ports:
+      - "4000:4000"
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_USER: root
+      MYSQL_PASSWORD: root
+      MYSQL_DATABASE: integracaoaf
+      MYSQL_PORT: 7777
+      RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
+    depends_on:
+      - mysql
+      - rabbitmq
+
+  rabbitmq:
+    image: "rabbitmq:management"
+    container_name: rabbitmq
+    ports:
+      - "15672:15672"
+      - "5672:5672"
