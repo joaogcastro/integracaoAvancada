@@ -1,7 +1,10 @@
 from flask import Flask
 from controller.message_controller import message_controller
+from flask_cors import CORS 
+
 
 app = Flask(__name__)
+CORS(app) 
 
 app.register_blueprint(message_controller, url_prefix='/python_api')
 

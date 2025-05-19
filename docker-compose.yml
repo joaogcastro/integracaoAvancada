@@ -11,6 +11,19 @@ services:
     volumes:
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
 
+  redis:
+    image: redis:7.0
+    container_name: redis_cache
+    ports:
+      - "6379:6379"
+
+  rabbitmq:
+    image: "rabbitmq:management"
+    container_name: rabbitmq
+    ports:
+      - "15672:15672"
+      - "5672:5672"
+
   flask-api:
     build: ./python_api
     container_name: flask_api
@@ -49,21 +62,21 @@ services:
     ports:
       - "4000:4000"
     environment:
-      MYSQL_HOST: mysql
-      MYSQL_USER: root
-      MYSQL_PASSWORD: root
-      MYSQL_DATABASE: integracaoaf
-      MYSQL_PORT: 3306
-      RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      PYTHON_API_URL: http://flask-api:5000/python_api
+      REDIS_URL: redis://redis:6379
+      PHP_API_URL: http://php-api
     depends_on:
       - mysql
       - rabbitmq
+      - redis
 
   php-api:
     build: ./php_api
     container_name: php_api
     ports:
       - "8080:80"
+    command: apache2ctl -D FOREGROUND
     environment:
       MYSQL_HOST: mysql
       MYSQL_USER: root
@@ -73,9 +86,17 @@ services:
     depends_on:
       - mysql
 
-  rabbitmq:
-    image: "rabbitmq:management"
-    container_name: rabbitmq
-    ports:
-      - "15672:15672"
-      - "5672:5672"
+  # front:
+  #   build:
+  #     context: ./chat-front
+  #   container_name: vite_frontend
+  #   ports:
+  #     - "5173:5173"
+  #   volumes:
+  #     - ./chat-front:/app
+  #     - /app/node_modules
+  #   environment:
+  #     - HOST=0.0.0.0
+  #     - VITE_API_URL=http://localhost:4000
+  #   working_dir: /app
+  #   command: npm run dev -- --host

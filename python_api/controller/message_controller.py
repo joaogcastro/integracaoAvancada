@@ -1,8 +1,12 @@
 from flask import Blueprint, request, jsonify
 import mysql.connector
 import os
+import logging
 
 message_controller = Blueprint('message_controller', __name__)
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 def get_db_connection():
     connection = mysql.connector.connect(
@@ -13,28 +17,13 @@ def get_db_connection():
     )
     return connection
 
-@message_controller.route('/message', methods=['POST'])
-def send_message():
-    data = request.get_json()
-    message = data.get('message')
-    user_id_send = data.get('userIdSend')
-    user_id_receive = data.get('userIdReceive')
 
-    if not message or not user_id_send or not user_id_receive:
-        return jsonify({'error': 'Invalid data'}), 400
-
+@message_controller.route('/messages', methods=['GET'])
+def list_messages():
     connection = get_db_connection()
-    cursor = connection.cursor()
-
-    query = """
-    INSERT INTO messages (message, userIdSend, userIdReceive)
-    VALUES (%s, %s, %s)
-    """
-    cursor.execute(query, (message, user_id_send, user_id_receive))
-    connection.commit()
-
+    cursor = connection.cursor(dictionary=True)
+    cursor.execute("SELECT message, userIdSend, userIdReceive FROM messages ORDER BY id ASC")
+    messages = cursor.fetchall()
     cursor.close()
     connection.close()
-
-    return jsonify({'ok': True}), 200
-
+    return jsonify(messages)
