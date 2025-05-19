@@ -57,6 +57,25 @@ async function connectToRabbitMQWithRetry(retries = 5, delay = 3000) {
 })();
 
 app.post('/send_message', async (req, res) => {
+  const authHeader = req.headers['authorization'] || req.headers['Authorization'];
+  if (!authHeader) {
+    return res.status(401).json({ error: 'Token não fornecido' });
+  }
+
+  const token = authHeader.split(' ')[1];
+  
+  // Log do token recebido para testar se está mudando
+  console.log('Token recebido em /send_message:', token);
+
+  if (!token) {
+    return res.status(401).json({ error: 'Token inválido' });
+  }
+
+  const valid = await validateToken(token);
+  if (!valid) {
+    return res.status(401).json({ error: 'Token inválido ou expirado' });
+  }
+
   const { message, userIdSend, userIdReceive } = req.body;
   console.log('Enviando por node conectado!');
   if (!message || !userIdSend || !userIdReceive) {
@@ -76,25 +95,41 @@ app.post('/send_message', async (req, res) => {
   }
 });
 
+
+
 app.get('/get_messages', async (req, res) => {
   try {
     const cached = await redisClient.get('cached_messages');
     if (cached) {
       console.log('Respondendo com cache Redis');
-      return res.json(JSON.parse(cached));
+      const messages = JSON.parse(cached);
+      return res.json({ cache: true, messages });
     }
 
     const response = await axios.get(`${PYTHON_API_URL}/messages`);
-    const messages = response.data;
+    const messages = response.data.messages || response.data;
 
     await redisClient.setEx('cached_messages', 60, JSON.stringify(messages));
 
-    return res.json(messages);
+    return res.json({ cache: false, messages });
+
   } catch (error) {
     console.error('Erro ao buscar mensagens:', error.message);
     return res.status(500).json({ error: 'Erro ao buscar mensagens' });
   }
 });
+
+
+async function validateToken(token) {
+  try {
+    const response = await axios.get( `${PHP_API_URL}/verify_token.php`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return response.data.valid;
+  } catch (error) {
+    return false;
+  }
+}
 
 
 //(API PHP)
@@ -110,33 +145,35 @@ app.post('/register', async (req, res) => {
 
 // (API PHP)
 app.post('/login', async (req, res) => {
-  const { email } = req.body; // assumindo que o login usa email (ajuste conforme seu caso)
+  const { email } = req.body;
 
   if (!email) {
     return res.status(400).json({ error: 'Email é obrigatório para login' });
   }
 
   try {
-    // Tenta pegar o cache do Redis (pode ser o token, dados do usuário, etc)
     const cacheKey = `login:${email}`;
     const cachedData = await redisClient.get(cacheKey);
 
+    let data;
+
     if (cachedData) {
       console.log('Login com cache Redis');
-      // Retorna os dados do cache direto
-      return res.json(JSON.parse(cachedData));
+      data = JSON.parse(cachedData);
+    } else {
+      const response = await axios.post(`${PHP_API_URL}/auth.php`, req.body);
+
+      if (response.status === 200) {
+        await redisClient.setEx(cacheKey, 600, JSON.stringify(response.data));
+        data = response.data;
+      } else {
+        return res.status(response.status).json(response.data);
+      }
     }
 
-    // Se não tem cache, chama o PHP para autenticar
-    const response = await axios.post(`${PHP_API_URL}/auth.php`, req.body);
+    axios.defaults.headers.common['Authorization'] = `Bearer ${data.token}`;
 
-    if (response.status === 200) {
-      // Guarda o resultado no Redis com TTL, por exemplo 10 minutos (600 segundos)
-      await redisClient.setEx(cacheKey, 600, JSON.stringify(response.data));
-    }
-
-    return res.status(response.status).json(response.data);
-
+    return res.json(data);
   } catch (error) {
     console.error('Erro no login:', error.response?.data || error.message);
     return res.status(error.response?.status || 500).json({ error: error.response?.data || 'Erro no login' });

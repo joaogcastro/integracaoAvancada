@@ -4,6 +4,7 @@ import os
 import json
 import logging
 import traceback
+import redis
 
 # Configura o logger
 logging.basicConfig(
@@ -11,6 +12,15 @@ logging.basicConfig(
     format='[%(asctime)s] [%(levelname)s] %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# Configura o cliente Redis
+redis_client = redis.Redis(
+    host=os.getenv('REDIS_HOST', 'redis'),
+    port=int(os.getenv('REDIS_PORT', 6379)),
+    decode_responses=True
+)
+
+CACHE_KEY = "messages_cache"
 
 def get_db_connection():
     try:
@@ -44,6 +54,10 @@ def callback(ch, method, properties, body):
 
         cursor.close()
         connection.close()
+
+        # Invalida o cache no Redis após inserir a mensagem
+        redis_client.delete(CACHE_KEY)
+        logger.info("Cache Redis invalidado com sucesso.")
 
         ch.basic_ack(delivery_tag=method.delivery_tag)
 

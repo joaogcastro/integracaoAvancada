@@ -36,6 +36,8 @@ services:
       MYSQL_DATABASE: integracaoaf
       MYSQL_PORT: 3306
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
     depends_on:
       - mysql
       - rabbitmq
@@ -51,6 +53,8 @@ services:
       MYSQL_DATABASE: integracaoaf
       MYSQL_PORT: 3306
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
     depends_on:
       - mysql
       - rabbitmq

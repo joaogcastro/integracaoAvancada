@@ -14,7 +14,7 @@ $expirationTime = 3600;
 
 $redis = new RedisClient([
     'scheme' => 'tcp',
-    'host'   => 'redis',  
+    'host'   => 'redis',
     'port'   => 6379,
 ]);
 
@@ -24,18 +24,25 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-$data = json_decode(file_get_contents('php://input'), true);
-$email = $data['email'] ?? null;
-$password = $data['password'] ?? null;
+$rawInput = file_get_contents('php://input');
+$data = json_decode($rawInput, true);
 
-if (!$email || !$password) {
+if (!is_array($data)) {
+    http_response_code(400);
+    echo json_encode(['error' => 'JSON inválido']);
+    exit;
+}
+
+$email = trim($data['email'] ?? '');
+$password = trim($data['password'] ?? '');
+
+if ($email === '' || $password === '') {
     http_response_code(400);
     echo json_encode(['error' => 'Email e senha são obrigatórios']);
     exit;
 }
 
 $cacheKey = "user_auth:" . md5($email);
-
 $cachedUserJson = $redis->get($cacheKey);
 
 if ($cachedUserJson) {
@@ -55,14 +62,14 @@ if ($cachedUserJson) {
     echo json_encode([
         'token' => $jwt,
         'user' => $cachedUser,
-        'cache' => true 
+        'cache' => true
     ]);
     exit;
 }
 
 $conn = getDbConnection();
 
-$stmt = $conn->prepare("SELECT id, name, lastName, email, password FROM user WHERE email = ?");
+$stmt = $conn->prepare("SELECT id, name, lastName, email, password, image_url FROM user WHERE email = ?");
 $stmt->bind_param("s", $email);
 $stmt->execute();
 $result = $stmt->get_result();
