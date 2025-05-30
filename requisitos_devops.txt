@@ -1,0 +1,32 @@
+Cada grupo deve:
+- Mostrar o docker-compose.yml.
+- Apresentar os logs dos containers.
+- Demonstrar o sistema rodando em ambiente isolado (localhost ou replit/Docker Desktop).
+- Apontar claramente onde cada API é executada.
+
+
+1. Containerizar cada microserviço existente (Auth-API em PHP, Record-API em Python, Receive-Send-API em Node.js).
+
+2. Criar imagens Docker customizadas, utilizando Dockerfile, para cada microserviço.
+
+3. Configurar um docker-compose.yml que:
+3.1. Gere uma rede compartilhada entre os serviços.
+3.2. Suba uma instância do Redis.
+3.3. Suba um banco de dados relacional (PostgreSQL ou MySQL).
+3.4. Monte volumes persistentes para o banco.
+3.5. Defina variáveis de ambiente para autenticação, nomes de serviços, credenciais etc.
+
+4. Criar um script deploy.sh que execute docker-compose up -d e faça logs, testes de saúde e inicialização controlada dos serviços.
+
+5. Executar testes automatizados, com curl ou Postman, para demonstrar:
+5.1. Registro e autenticação de usuários.
+5.2. Envio e recebimento de mensagens.
+5.3. Consulta de mensagens armazenadas.
+
+6. Documentar o pipeline de build e deploy, com um README.md contendo:
+6.1. Comandos de build.
+6.2. Comandos de deploy.
+6.3. Diagrama dos containers e fluxos de rede.
+6.4. Casos de teste.
+6.5. Pontos de falha e solução.
+
