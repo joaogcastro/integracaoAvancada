@@ -1,31 +1,34 @@
 const express = require('express');
 const amqp = require('amqplib');
-const bodyParser = require('body-parser');
-const http = require('http');
 const axios = require('axios');
-const cors = require('cors');
 const { createClient } = require('redis');
 
-const app = express();
-app.use(express.static('public'));
-app.use(bodyParser.json());
-app.use(cors());
-const server = http.createServer(app);
+//////////////////////////////////////////////////////
+// Constantes
+//////////////////////////////////////////////////////
 
 const RABBITMQ_URL = process.env.RABBITMQ_URL || "amqp://guest:guest@rabbitmq:5672/";
 const PYTHON_API_URL = process.env.PYTHON_API_URL || "http://flask-api:5000/python_api";
 const REDIS_URL = process.env.REDIS_URL || "redis://redis:6379";
 const PHP_API_URL = process.env.PHP_API_URL || "http://php-api"; 
 
-
-let rabbitChannel;
+//////////////////////////////////////////////////////
+// Redis
+//////////////////////////////////////////////////////
 
 const redisClient = createClient({
   url: REDIS_URL,
 });
 
 redisClient.on('error', (err) => console.error('Erro Redis:', err));
-redisClient.connect().then(() => console.log('Redis conectado!'));
+redisClient.connect()
+.then(() => console.log('Redis conectado!'));
+
+//////////////////////////////////////////////////////
+// RabbitMQ
+//////////////////////////////////////////////////////
+
+let rabbitChannel;
 
 async function connectToRabbitMQWithRetry(retries = 5, delay = 3000) {
   while (retries > 0) {
@@ -47,14 +50,23 @@ async function connectToRabbitMQWithRetry(retries = 5, delay = 3000) {
   }
 }
 
-(async () => {
+async function validateToken(token) {
   try {
-    await connectToRabbitMQWithRetry();
-  } catch (err) {
-    console.error(err);
-    process.exit(1);
+    const response = await axios.get( `${PHP_API_URL}/verify_token.php`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return response.data.valid;
+  } catch (error) {
+    return false;
   }
-})();
+}
+
+//////////////////////////////////////////////////////
+// Express
+//////////////////////////////////////////////////////
+
+const app = express();
+app.use(express.json());
 
 app.post('/send_message', async (req, res) => {
   const authHeader = req.headers['authorization'] || req.headers['Authorization'];
@@ -95,8 +107,6 @@ app.post('/send_message', async (req, res) => {
   }
 });
 
-
-
 app.get('/get_messages', async (req, res) => {
   try {
     const cached = await redisClient.get('cached_messages');
@@ -118,19 +128,6 @@ app.get('/get_messages', async (req, res) => {
     return res.status(500).json({ error: 'Erro ao buscar mensagens' });
   }
 });
-
-
-async function validateToken(token) {
-  try {
-    const response = await axios.get( `${PHP_API_URL}/verify_token.php`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    return response.data.valid;
-  } catch (error) {
-    return false;
-  }
-}
-
 
 //(API PHP)
 app.post('/register', async (req, res) => {
@@ -182,6 +179,16 @@ app.post('/login', async (req, res) => {
 
 
 
-server.listen(4000, () => {
-  console.log('Node.js API running on http://localhost:4000');
-});
+async function init() {
+  try {
+    await connectToRabbitMQWithRetry();
+    app.listen(4000, () => {
+      console.log('Node.js API running on http://localhost:4000');
+    });
+  } catch (e) {
+    console.error('Erro ao iniciar a aplicação:', e);
+    process.exit(1);
+  }
+}
+
+init();

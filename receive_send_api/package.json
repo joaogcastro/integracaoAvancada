@@ -12,10 +12,7 @@
   "dependencies": {
     "amqplib": "^0.10.8",
     "axios": "^1.9.0",
-    "body-parser": "^2.2.0",
     "express": "^5.1.0",
-    "mysql2": "^3.14.1",
-    "redis": "^5.0.1",
-    "socket.io": "^4.8.1"
+    "redis": "^5.0.1"
   }
 }
