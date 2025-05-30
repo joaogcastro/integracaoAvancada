@@ -1,7 +1,7 @@
 services:
   mysql:
     image: mysql:8.0
-    container_name: mysql_container
+    container_name: mysql
     restart: always
     environment:
       MYSQL_ROOT_PASSWORD: root
@@ -10,12 +10,18 @@ services:
       - "7777:3306"
     volumes:
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-proot"]
+      interval: 10s
+      retries: 5
+      timeout: 5s
+      start_period: 10s
 
   redis:
     image: redis:7.0
-    container_name: redis_cache
+    container_name: redis
     ports:
-      - "6379:6379"
+      - "6666:6379"
 
   rabbitmq:
     image: "rabbitmq:management"
@@ -39,8 +45,10 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
     depends_on:
-      - mysql
-      - rabbitmq
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
     command: python app.py
 
   worker:
@@ -56,8 +64,10 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
     depends_on:
-      - mysql
-      - rabbitmq
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
     command: python worker.py
 
   node-api:
@@ -71,9 +81,12 @@ services:
       REDIS_URL: redis://redis:6379
       PHP_API_URL: http://php-api
     depends_on:
-      - mysql
-      - rabbitmq
-      - redis
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+      redis:
+        condition: service_started
 
   php-api:
     build: ./php_api
@@ -88,7 +101,8 @@ services:
       MYSQL_DATABASE: integracaoaf
       MYSQL_PORT: 3306
     depends_on:
-      - mysql
+      mysql:
+        condition: service_healthy
 
   # front:
   #   build:

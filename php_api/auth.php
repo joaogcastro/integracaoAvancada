@@ -47,6 +47,14 @@ $cachedUserJson = $redis->get($cacheKey);
 
 if ($cachedUserJson) {
     $cachedUser = json_decode($cachedUserJson, true);
+    
+    if (!isset($cachedUser['password']) || !password_verify($password, $cachedUser['password'])) {
+        http_response_code(401);
+        echo json_encode(['error' => 'Credenciais inválidas']);
+        exit;
+    }
+
+    unset($cachedUser['password']);
 
     $payload = [
         'iss' => $issuer,
@@ -74,14 +82,14 @@ $stmt->bind_param("s", $email);
 $stmt->execute();
 $result = $stmt->get_result();
 $user = $result->fetch_assoc();
+$stmt->close();
+$conn->close();
 
 if (!$user || !password_verify($password, $user['password'])) {
     http_response_code(401);
     echo json_encode(['error' => 'Credenciais inválidas']);
     exit;
 }
-
-unset($user['password']);
 
 $redis->setex($cacheKey, $expirationTime, json_encode($user));
 
@@ -93,6 +101,8 @@ $payload = [
     'name' => $user['name'],
     'email' => $user['email']
 ];
+
+unset($user['password']); // não expor a senha no response
 
 $jwt = JWT::encode($payload, $secretKey, 'HS256');
 
