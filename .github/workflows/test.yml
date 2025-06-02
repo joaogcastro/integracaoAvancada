@@ -21,19 +21,19 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Set up Docker Compose
-        run: docker-compose up -d
+        run: docker compose up -d
 
       - name: Wait for containers to be healthy
         run: |
           # Espera até que todos os containers estejam healthy ou o tempo limite seja atingido
           timeout=60
           elapsed=0
-          while ! docker-compose ps | grep -q "healthy"; do
+          while ! docker compose ps | grep -q "healthy"; do
             sleep 2
             elapsed=$((elapsed + 2))
             if [ "$elapsed" -ge "$timeout" ]; then
               echo "Timeout esperando containers ficarem healthy"
-              docker-compose logs
+              docker compose logs
               exit 1
             fi
           done
