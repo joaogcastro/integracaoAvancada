@@ -1,15 +1,13 @@
 from flask import Blueprint, request, jsonify
-import mysql.connector
 import os
 import logging
 import redis
 import json
+from database import get_db_connection
 
 message_controller = Blueprint('message_controller', __name__)
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
 
 redis_client = redis.Redis(
     host=os.getenv('REDIS_HOST', 'redis'), 
@@ -18,16 +16,6 @@ redis_client = redis.Redis(
 )
 
 CACHE_KEY = "messages_cache"
-
-def get_db_connection():
-    connection = mysql.connector.connect(
-        host=os.getenv('MYSQL_HOST', 'mysql'), 
-        user=os.getenv('MYSQL_USER', 'root'),  
-        password=os.getenv('MYSQL_PASSWORD', 'root'),  
-        database=os.getenv('MYSQL_DATABASE', 'integracaoaf')  
-    )
-    return connection
-
 
 @message_controller.route('/messages', methods=['GET'])
 def list_messages():
@@ -48,6 +36,3 @@ def list_messages():
     redis_client.set(CACHE_KEY, json.dumps(messages)) 
 
     return jsonify({"messages": messages, "cache": False})
-
-
-

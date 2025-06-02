@@ -1,38 +1,43 @@
 services:
   mysql:
     image: mysql:8.0
-    container_name: mysql
-    restart: always
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: integracaoaf
     ports:
       - "7777:3306"
     volumes:
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - mysql_data:/var/lib/mysql
+    networks:
+      - app_network
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-proot"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
       retries: 5
-      timeout: 5s
-      start_period: 10s
 
   redis:
     image: redis:7.0
-    container_name: redis
     ports:
       - "6666:6379"
+    networks:
+      - app_network
 
   rabbitmq:
-    image: "rabbitmq:management"
-    container_name: rabbitmq
+    image: rabbitmq:management
     ports:
       - "15672:15672"
       - "5672:5672"
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "status"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   flask-api:
-    build: ./python_api
-    container_name: flask_api
+    build: ./record_api
+    command: python app.py
     ports:
       - "5000:5000"
     environment:
@@ -48,31 +53,12 @@ services:
       mysql:
         condition: service_healthy
       rabbitmq:
-        condition: service_started
-    command: python app.py
-
-  worker:
-    build: ./python_api
-    container_name: worker
-    environment:
-      MYSQL_HOST: mysql
-      MYSQL_USER: root
-      MYSQL_PASSWORD: root
-      MYSQL_DATABASE: integracaoaf
-      MYSQL_PORT: 3306
-      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-    depends_on:
-      mysql:
         condition: service_healthy
-      rabbitmq:
-        condition: service_started
-    command: python worker.py
+    networks:
+      - app_network
 
   node-api:
-    build: ./node_api
-    container_name: node_api
+    build: ./receive_send_api
     ports:
       - "4000:4000"
     environment:
@@ -81,19 +67,17 @@ services:
       REDIS_URL: redis://redis:6379
       PHP_API_URL: http://php-api
     depends_on:
-      mysql:
-        condition: service_healthy
       rabbitmq:
-        condition: service_started
+        condition: service_healthy
       redis:
         condition: service_started
+    networks:
+      - app_network
 
   php-api:
-    build: ./php_api
-    container_name: php_api
+    build: ./auth_api
     ports:
       - "8080:80"
-    command: apache2ctl -D FOREGROUND
     environment:
       MYSQL_HOST: mysql
       MYSQL_USER: root
@@ -103,18 +87,14 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - app_network
 
-  # front:
-  #   build:
-  #     context: ./chat-front
-  #   container_name: vite_frontend
-  #   ports:
-  #     - "5173:5173"
-  #   volumes:
-  #     - ./chat-front:/app
-  #     - /app/node_modules
-  #   environment:
-  #     - HOST=0.0.0.0
-  #     - VITE_API_URL=http://localhost:4000
-  #   working_dir: /app
-  #   command: npm run dev -- --host
+volumes:
+  mysql_data:
+
+networks:
+  app_network:
+    driver: bridge

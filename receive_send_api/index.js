@@ -16,13 +16,15 @@ const PHP_API_URL = process.env.PHP_API_URL || "http://php-api";
 // Redis
 //////////////////////////////////////////////////////
 
-const redisClient = createClient({
-  url: REDIS_URL,
-});
+let redisClient;
 
-redisClient.on('error', (err) => console.error('Erro Redis:', err));
-redisClient.connect()
-.then(() => console.log('Redis conectado!'));
+async function connectRedis() {
+  redisClient = createClient({ url: REDIS_URL });
+  redisClient.on('error', (err) => console.error('Erro Redis:', err));
+  await redisClient.connect();
+  console.log('Redis conectado!');
+}
+
 
 //////////////////////////////////////////////////////
 // RabbitMQ
@@ -50,6 +52,10 @@ async function connectToRabbitMQWithRetry(retries = 5, delay = 3000) {
   }
 }
 
+//////////////////////////////////////////////////////
+// Auth functions
+//////////////////////////////////////////////////////
+
 async function validateToken(token) {
   try {
     const response = await axios.get( `${PHP_API_URL}/verify_token.php`, {
@@ -75,10 +81,6 @@ app.post('/send_message', async (req, res) => {
   }
 
   const token = authHeader.split(' ')[1];
-  
-  // Log do token recebido para testar se está mudando
-  console.log('Token recebido em /send_message:', token);
-
   if (!token) {
     return res.status(401).json({ error: 'Token inválido' });
   }
@@ -89,7 +91,6 @@ app.post('/send_message', async (req, res) => {
   }
 
   const { message, userIdSend, userIdReceive } = req.body;
-  console.log('Enviando por node conectado!');
   if (!message || !userIdSend || !userIdReceive) {
     return res.status(400).json({ error: 'Invalid data' });
   }
@@ -168,8 +169,6 @@ app.post('/login', async (req, res) => {
       }
     }
 
-    axios.defaults.headers.common['Authorization'] = `Bearer ${data.token}`;
-
     return res.json(data);
   } catch (error) {
     console.error('Erro no login:', error.response?.data || error.message);
@@ -177,10 +176,9 @@ app.post('/login', async (req, res) => {
   }
 });
 
-
-
 async function init() {
   try {
+    await connectRedis();
     await connectToRabbitMQWithRetry();
     app.listen(4000, () => {
       console.log('Node.js API running on http://localhost:4000');

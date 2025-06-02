@@ -14,5 +14,22 @@ function getDbConnection() {
         exit;
     }
 
+    $createTableQuery = "
+        CREATE TABLE IF NOT EXISTS user (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(255) NOT NULL,
+            lastName VARCHAR(255) NOT NULL,
+            email VARCHAR(255) NOT NULL UNIQUE,
+            password VARCHAR(255) NOT NULL,
+            image_url VARCHAR(1024) NOT NULL
+        );
+    ";
+
+    if (!$conn->query($createTableQuery)) {
+        http_response_code(500);
+        echo json_encode(['error' => 'Erro ao criar tabela: ' . $conn->error]);
+        exit;
+    }
+
     return $conn;
 }
