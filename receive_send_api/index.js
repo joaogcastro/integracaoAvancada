@@ -1,6 +1,8 @@
 const express = require('express');
 const amqp = require('amqplib');
+const bodyParser = require("body-parser");
 const axios = require('axios');
+const cors = require("cors");
 const { createClient } = require('redis');
 
 //////////////////////////////////////////////////////
@@ -72,61 +74,86 @@ async function validateToken(token) {
 //////////////////////////////////////////////////////
 
 const app = express();
-app.use(express.json());
+app.use(express.static("public"));
+app.use(bodyParser.json());
+app.use(cors());
 
-app.post('/send_message', async (req, res) => {
-  const authHeader = req.headers['authorization'] || req.headers['Authorization'];
+app.post("/send_message", async (req, res) => {
+  const authHeader =
+    req.headers["authorization"] || req.headers["Authorization"];
   if (!authHeader) {
-    return res.status(401).json({ error: 'Token não fornecido' });
+    return res.status(401).json({ error: "Token não fornecido" });
   }
 
-  const token = authHeader.split(' ')[1];
+  const token = authHeader.split(" ")[1];
+
   if (!token) {
-    return res.status(401).json({ error: 'Token inválido' });
+    return res.status(401).json({ error: "Token inválido" });
   }
 
   const valid = await validateToken(token);
   if (!valid) {
-    return res.status(401).json({ error: 'Token inválido ou expirado' });
+    return res.status(401).json({ error: "Token inválido ou expirado" });
   }
 
-  const { message, userIdSend, userIdReceive } = req.body;
-  if (!message || !userIdSend || !userIdReceive) {
-    return res.status(400).json({ error: 'Invalid data' });
+  const { message, userIdSend, roomId } = req.body;
+  console.log("Enviando por node conectado!");
+
+  if (!message || !userIdSend || !roomId) {
+    return res.status(400).json({ error: "Invalid data" });
   }
 
   try {
-    const messageContent = JSON.stringify({ message, userIdSend, userIdReceive });
-    rabbitChannel.sendToQueue('messagesQueue', Buffer.from(messageContent), { persistent: true });
+    const messageContent = JSON.stringify({
+      message,
+      userIdSend,
+      roomId,
+    });
 
-    await redisClient.del('cached_messages');
+    rabbitChannel.sendToQueue("messagesQueue", Buffer.from(messageContent), {
+      persistent: true,
+    });
 
-    return res.json({ ok: true, message: 'Message added to queue' });
+    await redisClient.del("cached_messages");
+
+    return res.json({ ok: true, message: "Message added to queue" });
   } catch (err) {
-    console.error('Error sending message to queue', err);
-    return res.status(500).json({ error: 'Failed to send message' });
+    console.error("Error sending message to queue", err);
+    return res.status(500).json({ error: "Failed to send message" });
   }
 });
 
-app.get('/get_messages', async (req, res) => {
+app.get("/get_messages", async (req, res) => {
   try {
-    const cached = await redisClient.get('cached_messages');
+    const { roomId } = req.query;
+
+    if (!roomId) {
+      return res
+        .status(400)
+        .json({ error: "Parâmetro 'roomId' é obrigatório" });
+    }
+
+    const cacheKey = `cached_messages_room_${roomId}`;
+
+    const cached = await redisClient.get(cacheKey);
     if (cached) {
-      console.log('Respondendo com cache Redis');
+      console.log(`Respondendo com cache Redis para chave ${cacheKey}`);
       const messages = JSON.parse(cached);
       return res.json({ cache: true, messages });
     }
 
-    const response = await axios.get(`${PYTHON_API_URL}/messages`);
+    const url = new URL(`${PYTHON_API_URL}/messages`);
+    url.searchParams.append("roomId", roomId);
+
+    const response = await axios.get(url.toString());
     const messages = response.data.messages || response.data;
 
-    await redisClient.setEx('cached_messages', 60, JSON.stringify(messages));
+    await redisClient.setEx(cacheKey, 60, JSON.stringify(messages));
 
     return res.json({ cache: false, messages });
-
   } catch (error) {
-    console.error('Erro ao buscar mensagens:', error.message);
-    return res.status(500).json({ error: 'Erro ao buscar mensagens' });
+    console.error("Erro ao buscar mensagens:", error.message);
+    return res.status(500).json({ error: "Erro ao buscar mensagens" });
   }
 });
 
@@ -173,6 +200,68 @@ app.post('/login', async (req, res) => {
   } catch (error) {
     console.error('Erro no login:', error.response?.data || error.message);
     return res.status(error.response?.status || 500).json({ error: error.response?.data || 'Erro no login' });
+  }
+});
+
+// (API PHP) delete
+app.delete("/user", async (req, res) => {
+  const { id } = req.body;
+
+  if (!id) {
+    return res.status(400).json({ error: "ID do usuário é obrigatório" });
+  }
+
+  try {
+    const response = await axios.delete(`${PHP_API_URL}/deleteUser.php`, {
+      data: { id },
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    return res.status(response.status).json(response.data);
+  } catch (error) {
+    console.error(
+      "Erro ao deletar usuário:",
+      error.response?.data || error.message
+    );
+    return res
+      .status(error.response?.status || 500)
+      .json({ error: error.response?.data || "Erro ao deletar usuário" });
+  }
+});
+
+// (API PHP) update
+app.put("/user", async (req, res) => {
+  const { id, name, lastName, email, image_url } = req.body;
+  console.log("Dados recebidos para update:", req.body);
+
+  if (!id || !name || !lastName || !email || !image_url) {
+    return res.status(400).json({ error: "Campos obrigatórios ausentes" });
+  }
+
+  try {
+    const response = await axios.put(
+      `${PHP_API_URL}/updateUser.php`,
+      { id, name, lastName, email, image_url },
+      {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    await redisClient.del(`login:${email}`);
+
+    return res.status(response.status).json(response.data);
+  } catch (error) {
+    console.error(
+      "Erro ao atualizar usuário:",
+      error.response?.data || error.message
+    );
+    return res
+      .status(error.response?.status || 500)
+      .json({ error: error.response?.data || "Erro ao atualizar usuário" });
   }
 });
 

@@ -1,6 +1,7 @@
 services:
   mysql:
     image: mysql:8.0
+    container_name: mysql_container
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: integracaoaf
@@ -17,6 +18,7 @@ services:
 
   redis:
     image: redis:7.0
+    container_name: redis_cache
     ports:
       - "6666:6379"
     networks:
@@ -24,6 +26,7 @@ services:
 
   rabbitmq:
     image: rabbitmq:management
+    container_name: rabbitmq
     ports:
       - "15672:15672"
       - "5672:5672"
@@ -37,6 +40,7 @@ services:
 
   flask-api:
     build: ./record_api
+    container_name: flask-api
     command: python app.py
     ports:
       - "5000:5000"
@@ -59,6 +63,7 @@ services:
 
   node-api:
     build: ./receive_send_api
+    container_name: node-api
     ports:
       - "4000:4000"
     environment:
@@ -76,6 +81,7 @@ services:
 
   php-api:
     build: ./auth_api
+    container_name: php-api
     ports:
       - "8080:80"
     environment:
@@ -89,6 +95,19 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+    networks:
+      - app_network
+
+  front:
+    build: ./front
+    container_name: front
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - VITE_API_URL=http://node-api:4000
+    depends_on:
+      - node-api
     networks:
       - app_network
 
