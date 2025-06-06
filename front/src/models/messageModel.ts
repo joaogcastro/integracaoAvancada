@@ -1,7 +1,7 @@
 export interface MessageModel {
   id: number;
   message: string;
-  roomId: number;
-  userIdSend: number;
+  senderId: number;
+  receiverId: number;
   created_at: string;
 }

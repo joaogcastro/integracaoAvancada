@@ -1,5 +1,3 @@
-import type RoomModel from "./roomModel";
-
 export default interface UserModel {
   id: number;
   name: string;
@@ -7,5 +5,4 @@ export default interface UserModel {
   email: string;
   password?: string;
   image_url: string;
-  rooms: RoomModel[];
 }

@@ -34,19 +34,6 @@ def create_user_table(conn):
     cursor.close()
     logger.info("Tabela 'user' verificada/criada com sucesso.")
 
-def create_room_table(conn):
-    query = """
-        CREATE TABLE IF NOT EXISTS room (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            name VARCHAR(255) NOT NULL
-        );
-    """
-    cursor = conn.cursor()
-    cursor.execute(query)
-    conn.commit()
-    cursor.close()
-    logger.info("Tabela 'room' verificada/criada com sucesso.")
-
 def create_messages_table(conn):
     query = """
         CREATE TABLE IF NOT EXISTS messages (
@@ -64,29 +51,11 @@ def create_messages_table(conn):
     cursor.close()
     logger.info("Tabela 'messages' verificada/criada com sucesso.")
 
-def create_user_room_table(conn):
-    query = """
-        CREATE TABLE IF NOT EXISTS user_room (
-            user_id INT NOT NULL,
-            room_id INT NOT NULL,
-            PRIMARY KEY (user_id, room_id),
-            FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE,
-            FOREIGN KEY (room_id) REFERENCES room(id) ON DELETE CASCADE
-        );
-    """
-    cursor = conn.cursor()
-    cursor.execute(query)
-    conn.commit()
-    cursor.close()
-    logger.info("Tabela 'user_room' verificada/criada com sucesso.")
-
 def init_db():
     try:
         conn = get_db_connection()
         create_user_table(conn)
-        create_room_table(conn)
         create_messages_table(conn)
-        create_user_room_table(conn)
         conn.close()
         logger.info("Banco de dados inicializado com sucesso.")
     except Exception as e:
