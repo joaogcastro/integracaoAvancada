@@ -6,15 +6,30 @@ logger = logging.getLogger(__name__)
 
 def get_db_connection():
     try:
-        conn = mysql.connector.connect(
-            host=os.getenv('MYSQL_HOST', 'mysql'),
-            user=os.getenv('MYSQL_USER', 'root'),
-            password=os.getenv('MYSQL_PASSWORD', 'root'),
-            database=os.getenv('MYSQL_DATABASE', 'integracaoaf')
-        )
-        return conn
+        db_config = {
+            'host': os.getenv('MYSQL_HOST', 'mysql'),
+            'user': os.getenv('MYSQL_USER', 'root'),
+            'password': os.getenv('MYSQL_PASSWORD', 'root'),
+            'database': os.getenv('MYSQL_DATABASE', 'integracaoaf')
+        }
+        try:
+            # Tenta conectar já especificando o banco
+            conn = mysql.connector.connect(**db_config)
+            return conn
+        except mysql.connector.errors.DatabaseError:
+            # Se o banco não existir, conecta sem database e cria
+            temp_config = db_config.copy()
+            temp_config.pop('database')
+            conn = mysql.connector.connect(**temp_config)
+            cursor = conn.cursor()
+            cursor.execute(f"CREATE DATABASE IF NOT EXISTS `{db_config['database']}`")
+            cursor.close()
+            conn.close()
+            # Agora conecta novamente já com o banco criado
+            conn = mysql.connector.connect(**db_config)
+            return conn
     except Exception as e:
-        logger.error("Erro ao conectar no banco de dados: %s", e)
+        logger.error("Erro ao conectar/criar o banco de dados: %s", e)
         raise
 
 def create_user_table(conn):
