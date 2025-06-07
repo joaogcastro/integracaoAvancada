@@ -56,9 +56,7 @@ export const AuthProvider = ({ children }: authProp) => {
     setData({} as AuthState);
   };
 
-  const updateProfile = (updateData: UserModel) => {
-    const updatedUser = { ...data?.user, ...updateData };
-
+  const updateProfile = (updatedUser: UserModel) => {
     localStorage.setItem("integracaoAF/user", JSON.stringify(updatedUser));
     setData((old) => ({ token: old.token, user: updatedUser }));
   };

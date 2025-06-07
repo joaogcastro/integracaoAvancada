@@ -49,6 +49,7 @@ export default function ProfilePage() {
     setLoading(true);
     try {
       const response = await api.put("/user", data);
+      console.log("Resposta da API:", response.data.user);
       updateProfile(response.data.user as UserModel);
     } catch (error) {
       console.error("Erro na atualização:", error);
@@ -57,7 +58,7 @@ export default function ProfilePage() {
       navigate("/chat"); 
     }
   };
-
+  
   const handleDeleteProfile = async (id: number) => {
     setLoading(true);
     try {

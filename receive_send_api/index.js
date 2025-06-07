@@ -96,6 +96,8 @@ app.use(express.static("public"));
 app.use(bodyParser.json());
 app.use(cors());
 
+let updateMessages = false;
+
 app.post("/send_message", async (req, res) => {
   const authHeader =
     req.headers["authorization"] || req.headers["Authorization"];
@@ -131,9 +133,7 @@ app.post("/send_message", async (req, res) => {
     rabbitChannel.sendToQueue("messagesQueue", Buffer.from(messageContent), {
       persistent: true,
     });
-
-    await redisClient.del("cached_messages");
-
+    updateMessages = true;
     return res.json({ ok: true, message: "Message added to queue" });
   } catch (err) {
     console.error("Error sending message to queue", err);
@@ -158,7 +158,7 @@ app.get("/get_messages", async (req, res) => {
     )}`;
 
     const cached = await redisClient.get(cacheKey);
-    if (cached) {
+    if (cached && !updateMessages) {
       console.log(`Respondendo com cache Redis para chave ${cacheKey}`);
       return res.json({ cache: true, messages: JSON.parse(cached) });
     }
@@ -174,7 +174,7 @@ app.get("/get_messages", async (req, res) => {
 
     // Armazena no Redis por 1 minuto
     await redisClient.setEx(cacheKey, 60, JSON.stringify(messages));
-
+    updateMessages = false;
     return res.json({
       cache: false,
       messages,
@@ -253,7 +253,6 @@ app.delete("/user", async (req, res) => {
         "Content-Type": "application/json",
       },
     });
-    await redisClient.del(`users_list`);
     return res.status(response.status).json(response.data);
   } catch (error) {
     console.error(
@@ -287,7 +286,6 @@ app.put("/user", async (req, res) => {
     );
 
     await redisClient.del(`login:${email}`);
-    await redisClient.del(`users_list`);
 
     return res.status(response.status).json(response.data);
   } catch (error) {

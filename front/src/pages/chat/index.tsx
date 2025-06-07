@@ -61,7 +61,6 @@ export default function ChatPage() {
         setState(prev => ({ ...prev, isLoading: { ...prev.isLoading, users: true } }));
 
         const response = await api.get('/users');
-        console.log('Users data:', response.data);
         const usersData = parseUsersResponse(response.data);
 
         setState(prev => ({
@@ -207,7 +206,7 @@ export default function ChatPage() {
       <Sidebar>
         <ChatListContainer>
           {state.isLoading.users ? (
-            <div>Carregando usuários...</div>
+            <div style={{ color: 'white' }}>Carregando usuários...</div>
           ) : (
             state.users.map((userItem) => (
               <ChatListItem
