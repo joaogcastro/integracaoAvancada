@@ -5,7 +5,6 @@ require_once 'vendor/autoload.php';
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 
-// Enable error reporting
 error_reporting(E_ALL);
 ini_set('display_errors', '1');
 
@@ -15,18 +14,11 @@ header("Access-Control-Allow-Methods: GET, OPTIONS");
 header("Access-Control-Allow-Headers: Authorization, Content-Type, X-Requested-With");
 header("Access-Control-Allow-Credentials: true");
 
-// Handle preflight requests
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit(0);
 }
 
 $secretKey = 'sua_chave_secreta_muito_segura';
-
-// Log received headers for debugging
-error_log("Received headers: " . print_r(getallheaders(), true));
-error_log("Server variables: " . print_r($_SERVER, true));
-
-// Get authorization header from various possible locations
 $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? 
               $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? 
               (function_exists('apache_request_headers') ? apache_request_headers()['Authorization'] ?? '' : '');
@@ -51,7 +43,7 @@ try {
     }
 
     $currentUserId = $decoded->sub;
-    $stmt = $conn->prepare("SELECT id, name, lastName FROM user WHERE id != ?");
+    $stmt = $conn->prepare("SELECT id, name, lastName, image_url FROM user WHERE id != ?");
     if (!$stmt) {
         throw new Exception("Prepare failed: " . $conn->error);
     }
@@ -67,7 +59,8 @@ try {
         $users[] = [
             'id' => $row['id'],
             'name' => $row['name'],
-            'lastName' => $row['lastName']
+            'lastName' => $row['lastName'],
+            'image_url' => $row['image_url']
         ];
     }
 

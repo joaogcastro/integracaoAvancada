@@ -52,8 +52,7 @@ async function connectToRabbitMQWithRetry(retries = 5, delay = 3000) {
         );
       }
       console.log(
-        `Tentando novamente em ${
-          delay / 1000
+        `Tentando novamente em ${delay / 1000
         } segundos... (${retries} tentativas restantes)`
       );
       await new Promise((res) => setTimeout(res, delay));
@@ -115,10 +114,10 @@ app.post("/send_message", async (req, res) => {
     return res.status(401).json({ error: "Token inválido ou expirado" });
   }
 
-  const { message, userIdSend } = req.body;
+  const { message, userIdSend, userIdReceive } = req.body;
   console.log("Enviando por node conectado!");
 
-  if (!message || !userIdSend) {
+  if (!message || !userIdSend || !userIdReceive) {
     return res.status(400).json({ error: "Invalid data" });
   }
 
@@ -126,6 +125,7 @@ app.post("/send_message", async (req, res) => {
     const messageContent = JSON.stringify({
       message,
       userIdSend,
+      userIdReceive
     });
 
     rabbitChannel.sendToQueue("messagesQueue", Buffer.from(messageContent), {
@@ -143,18 +143,18 @@ app.post("/send_message", async (req, res) => {
 
 app.get("/get_messages", async (req, res) => {
   try {
-    const { senderId, receiverId } = req.query;
+    const { userIdSend, userIdReceive } = req.query;
 
-    if (!senderId || !receiverId) {
+    if (!userIdSend || !userIdReceive) {
       return res.status(400).json({
-        error: "Parâmetros 'senderId' e 'receiverId' são obrigatórios",
+        error: "Parâmetros 'userIdSend' e 'userIdReceive' são obrigatórios",
       });
     }
 
     // Cria uma chave de cache única para a conversa entre esses usuários
-    const cacheKey = `messages_${Math.min(senderId, receiverId)}_${Math.max(
-      senderId,
-      receiverId
+    const cacheKey = `messages_${Math.min(userIdSend, userIdReceive)}_${Math.max(
+      userIdSend,
+      userIdReceive
     )}`;
 
     const cached = await redisClient.get(cacheKey);
@@ -165,8 +165,8 @@ app.get("/get_messages", async (req, res) => {
 
     const response = await axios.get(`${PYTHON_API_URL}/messages`, {
       params: {
-        senderId,
-        receiverId,
+        userIdSend,
+        userIdReceive,
       },
     });
 
@@ -228,7 +228,7 @@ app.post("/login", async (req, res) => {
         return res.status(response.status).json(response.data);
       }
     }
-
+    await redisClient.del(`users_list`);
     return res.json(data);
   } catch (error) {
     console.error("Erro no login:", error.response?.data || error.message);
@@ -253,7 +253,7 @@ app.delete("/user", async (req, res) => {
         "Content-Type": "application/json",
       },
     });
-
+    await redisClient.del(`users_list`);
     return res.status(response.status).json(response.data);
   } catch (error) {
     console.error(
@@ -287,6 +287,7 @@ app.put("/user", async (req, res) => {
     );
 
     await redisClient.del(`login:${email}`);
+    await redisClient.del(`users_list`);
 
     return res.status(response.status).json(response.data);
   } catch (error) {
