@@ -49,16 +49,15 @@ export default function ProfilePage() {
     setLoading(true);
     try {
       const response = await api.put("/user", data);
-      console.log("Resposta da API:", response.data.user);
-      updateProfile(response.data.user as UserModel);
+      updateProfile(response.data.user);
     } catch (error) {
       console.error("Erro na atualização:", error);
     } finally {
       setLoading(false);
-      navigate("/chat"); 
+      navigate("/chat");
     }
   };
-  
+
   const handleDeleteProfile = async (id: number) => {
     setLoading(true);
     try {
@@ -91,13 +90,15 @@ export default function ProfilePage() {
       <Card>
         <Header>
           <h3>Editar Perfil</h3>
-          <p>Edita ai vagabundo</p>
+          <p>Não Disponivel</p>
+          <p>Dev com Preguiça</p>
         </Header>
 
         <Form onSubmit={handleSubmit(onSubmit)}>
           <Input
             type="text"
             placeholder="Nome"
+            disabled={true}
             inputStyle="primary"
             {...register("name", { required: "Nome é obrigatório" })}
             error={errors.name?.message}
@@ -106,6 +107,7 @@ export default function ProfilePage() {
           <Input
             type="text"
             placeholder="Sobrenome"
+            disabled={true}
             inputStyle="primary"
             {...register("lastName", { required: "Sobrenome é obrigatório" })}
             error={errors.lastName?.message}
@@ -123,17 +125,25 @@ export default function ProfilePage() {
           <Input
             type="text"
             placeholder="URL da Imagem"
+            disabled={true}
             inputStyle="primary"
             {...register("image_url", { required: "Imagem é obrigatória" })}
             error={errors.image_url?.message}
           />
 
           <ButtonComponent
-            disabled={loading}
+            disabled={true}
             buttonStyles="primary"
             type="submit"
           >
             {loading ? "Carregando..." : "Editar"}
+          </ButtonComponent>
+          <ButtonComponent
+            disabled={loading}
+            buttonStyles="primary"
+            onClick={() => navigate("/chat")}
+          >
+            Voltar
           </ButtonComponent>
         </Form>
       </Card>
