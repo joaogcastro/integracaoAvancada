@@ -1,31 +1,25 @@
-name: Run Jest tests
+name: Run Jest Tests
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
 
 jobs:
   test:
     runs-on: ubuntu-latest
 
-    services:
-      docker:
-        image: docker:20.10.16
-        options: --privileged
-
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Set up Docker Compose
-        run: docker compose up -d
-
-      - name: Wait for containers to be healthy
+      - name: Set up Docker and services
         run: |
-          # Espera até que todos os containers estejam healthy ou o tempo limite seja atingido
+          docker compose up -d
+
+          echo "Aguardando containers ficarem healthy..."
           timeout=60
           elapsed=0
           while ! docker compose ps | grep -q "healthy"; do
@@ -41,14 +35,10 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: 18
 
-      - name: Install dependencies (tests folder)
+      - name: Install dependencies and run tests
+        working-directory: tests
         run: |
-          cd tests
-          npm i
-
-      - name: Run Jest tests
-        run: |
-          cd tests
+          npm install
           npm test

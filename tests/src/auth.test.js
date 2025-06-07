@@ -1,6 +1,5 @@
 const request = require('supertest');
 
-// Substitua pela URL correta do seu servidor PHP
 const API_URL = 'http://localhost:8080';
 
 describe('Rota POST - createUser.php', () => {

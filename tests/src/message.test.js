@@ -1,13 +1,13 @@
 const amqp = require('amqplib');
 const request = require('supertest');
-const mysql = require('mysql2/promise'); // para facilitar operações async
+const mysql = require('mysql2/promise');
 
 const API_URL = 'http://localhost:5000/python_api';
 const RABBITMQ_URL = 'amqp://guest:guest@localhost:5672/';
 const QUEUE_NAME = 'messagesQueue';
 
 const DB_CONFIG = {
-  host: 'localhost', // ou 'mysql' se estiver em container
+  host: 'localhost',
   user: 'root',
   password: 'root',
   database: 'integracaoaf',
@@ -74,7 +74,7 @@ describe('Integração RabbitMQ + Flask API', () => {
       userIdReceive: 1002,
     };
 
-    await request(API_URL).get('/messages'); // esse GET atualiza o Redis
+    await request(API_URL).get('/messages');
 
     await publishMessage(testMessage);
 

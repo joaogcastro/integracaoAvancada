@@ -1,98 +1,134 @@
 const request = require('supertest');
 const Redis = require('ioredis');
 
+const redis = new Redis({host: 'localhost', port: 6666});
 const API_NODE_URL = 'http://localhost:4000';
-const API_FLASK_URL = 'http://localhost:5000/python_api'; // usado para invalidar cache
-const TEST_EMAIL = `user${Date.now()}@test.com`;
-
-jest.setTimeout(20000);
 
 let token;
 let userIdSend, userIdReceive;
-const redis = new Redis({host: 'localhost', port: 6666}); // conecta em localhost:6379 por padrão
 
-describe('Integração completa: Node.js + PHP + RabbitMQ + Redis + Flask', () => {
+jest.setTimeout(20000);
+
+const randomString = () => Math.random().toString(36).slice(2);
+
+describe('Integracao completa: Node.js + PHP + RabbitMQ + Redis + Flask', () => {
   beforeAll(async () => {
-    // 1. Registra dois usuários
-    const res1 = await request(API_NODE_URL)
+    const testEmail = `test${randomString()}@example.com`;
+
+    // Registra dois usuarios
+    await request(API_NODE_URL)
       .post('/register')
       .send({
-        name: 'Usuário 1',
+        name: 'Usuario 1',
         lastName: 'Da Silva',
-        email: TEST_EMAIL,
+        email: testEmail,
         password: 'senha123',
         image_url: 'http://exemplo.com/imagem.jpg'
-      });
+      })
+    .expect((res) => {
+      expect(res.status).toBe(201);
+      userIdSend = res.body.id;
+    });
 
-    expect(res1.status).toBe(201);
-    userIdSend = res1.body.id;
-
-    const res2 = await request(API_NODE_URL)
+    await request(API_NODE_URL)
       .post('/register')
       .send({
         name: 'Usuário 2',
         lastName: 'Da Silva',
-        email: `destino${Date.now()}@test.com`,
+        email: `destino${randomString()}@test.com`,
         password: 'senha123',
         image_url: 'http://exemplo.com/imagem.jpg'
-      });
+      })
+    .expect((res) => {
+      expect(res.status).toBe(201);
+      userIdReceive = res.body.id;
+    });
 
-    expect(res2.status).toBe(201);
-    userIdReceive = res2.body.id;
-
-    // 2. Faz login para obter o token
-    const loginRes = await request(API_NODE_URL)
+    // Login para obter o token
+    await request(API_NODE_URL)
       .post('/login')
-      .send({ email: TEST_EMAIL, password: 'senha123' });
+      .send({ email: testEmail, password: 'senha123' })
+    .expect((res) => {
+      expect(res.status).toBe(200);
+      token = res.body.token;
+    });
+  });
 
-    expect(loginRes.status).toBe(200);
-    token = loginRes.body.token;
+  beforeEach(async () => {
+    await redis.flushall();
   });
 
   afterAll(async () => {
-    await redis.quit(); // encerra conexão com Redis após os testes
+    await redis.quit();
   });
 
-  it('Envia mensagem autenticada para fila e verifica na /get_messages com Redis', async () => {
+  it('Envia mensagem autenticada para fila e verifica na /get_messages', async () => {
     const testMessage = {
-      message: `Mensagem automática ${Date.now()}`,
+      message: `Mensagem automatica ${randomString()}`,
       userIdSend,
       userIdReceive,
     };
 
-    // Limpa o cache Redis manualmente antes do teste
-    await redis.flushall();
-
-    // 3. Envia a mensagem autenticada
-    const resSend = await request(API_NODE_URL)
+    await request(API_NODE_URL)
       .post('/send_message')
       .set('Authorization', `Bearer ${token}`)
-      .send(testMessage);
+      .send(testMessage)
+      .expect((res) => {
+        expect(res.status).toBe(200);
+        expect(res.body.ok).toBe(true);
+      });
 
-    expect(resSend.status).toBe(200);
-    expect(resSend.body.ok).toBe(true);
+    // Timeout para garantir que a mensagem seja processada
     await new Promise(resolve => setTimeout(resolve, 1000));
 
-    // 4. Aguarda a propagação até que a mensagem apareça via /get_messages
-    let found = false;
-    for (let i = 0; i < 10; i++) {
-      const resGet = await request(API_NODE_URL).get('/get_messages');
-      const messages = resGet.body.messages;
-      const exists = messages?.some(
-        m =>
-          m.message === testMessage.message &&
-          m.userIdSend === testMessage.userIdSend &&
-          m.userIdReceive === testMessage.userIdReceive
-      );
+    await request(API_NODE_URL)
+      .get(`/get_messages?userIdSend=${userIdSend}&userIdReceive=${userIdReceive}`)
+      .expect((res) => {
+        expect(res.status).toBe(200);
+        expect(res.body.messages).toContainEqual(testMessage);
+      });
+  });
 
-      if (exists) {
-        found = true;
-        break;
-      }
+  it('Envia duas mensagens autenticada para fila e verifica na /get_messages', async () => {
+    const testMessage1 = {
+      message: `Mensagem automatica ${randomString()}`,
+      userIdSend,
+      userIdReceive,
+    };
 
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
+    const testMessage2 = {
+      message: `Mensagem automatica ${randomString()}`,
+      userIdSend,
+      userIdReceive,
+    };
 
-    expect(found).toBe(true);
+    await request(API_NODE_URL)
+      .post('/send_message')
+      .set('Authorization', `Bearer ${token}`)
+      .send(testMessage1)
+      .expect((res) => {
+        expect(res.status).toBe(200);
+        expect(res.body.ok).toBe(true);
+      });
+
+    await request(API_NODE_URL)
+      .post('/send_message')
+      .set('Authorization', `Bearer ${token}`)
+      .send(testMessage2)
+      .expect((res) => {
+        expect(res.status).toBe(200);
+        expect(res.body.ok).toBe(true);
+      });
+
+    // Timeout para garantir que a mensagem seja processada
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    await request(API_NODE_URL)
+      .get(`/get_messages?userIdSend=${userIdSend}&userIdReceive=${userIdReceive}`)
+      .expect((res) => {
+        expect(res.status).toBe(200);
+        expect(res.body.messages).toContainEqual(testMessage1);
+        expect(res.body.messages).toContainEqual(testMessage2);
+      });
   });
 });
